@@ -7,7 +7,7 @@ settings:
 importers:
 
   .:
-    devDependencies:
+    dependencies:
       '@iota/iota-sdk':
         specifier: ^1.11.0
         version: 1.11.0(typescript@5.9.3)
