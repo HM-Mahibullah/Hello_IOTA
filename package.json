@@ -1,0 +1,8 @@
+{
+  "name": "iota-hello-world",
+  "version": "1.0.0",
+  "type": "module",
+  "dependencies": {
+    "@iota/iota-sdk": "^1.11.0"
+  }
+}
