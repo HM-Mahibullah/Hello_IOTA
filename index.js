@@ -1,67 +1,60 @@
 import { getFullnodeUrl, IotaClient } from '@iota/iota-sdk/client';
 import { requestIotaFromFaucetV1 } from '@iota/iota-sdk/faucet';
 import { Ed25519Keypair } from '@iota/iota-sdk/keypairs/ed25519';
+import { Transaction } from '@iota/iota-sdk/transactions';
 
-const client = new IotaClient({
-  url: getFullnodeUrl('devnet'),  // devnet-এর জন্য
-  // testnet চাইলে: getFullnodeUrl('testnet')
-});
+const client = new IotaClient({ url: getFullnodeUrl('devnet') });
 
 async function main() {
-  try {
-    // নতুন র‍্যান্ডম keypair তৈরি করুন
-    const keypair = new Ed25519Keypair();
+    try {
+        const keypair = new Ed25519Keypair();
+        const myAddress = keypair.getPublicKey().toIotaAddress();
+        console.log('Target Address:', myAddress);
 
-    // hex অ্যাড্রেস পান (0x... ফরম্যাটে)
-    const myAddress = keypair.getPublicKey().toIotaAddress();
+        console.log('Requesting gas from faucet...');
+        await requestIotaFromFaucetV1({
+            host: 'https://faucet.devnet.iota.cafe/gas',
+            recipient: myAddress
+        });
+        
+        console.log('Waiting 45 seconds for gas...');
+        await new Promise(res => setTimeout(res, 45000));
 
-    console.log('My IOTA Address (hex):', myAddress);
+        // গ্যাস চেক করা
+        const coins = await client.getCoins({ owner: myAddress });
+        if (coins.data.length === 0) {
+            throw new Error("Faucet logic failed or delay. Please try again.");
+        }
 
-    // পাবলিক কী hex (অপশনাল, ডিবাগের জন্য)
-    const pubKeyBytes = keypair.getPublicKey().toRawBytes();
-    const pubKeyHex = '0x' + Array.from(pubKeyBytes)
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
-    console.log('Public key (hex):', pubKeyHex);
+        const txb = new Transaction();
+        
+        // ১. আপনার মেসেজটি একটি স্ট্রিং হিসেবে পিওর ডাটা ফর্মে তৈরি করা
+        const message = "I am mahibullah";
 
-    // Devnet ফসেট থেকে টোকেন রিকোয়েস্ট (সরাসরি URL দিয়ে)
-    console.log('Devnet fucet and token is request...');
-    const faucetResponse = await requestIotaFromFaucetV1({
-      host: 'https://faucet.devnet.iota.cafe/gas',
-      recipient: myAddress
-    });
-    console.log('Fucet success !', faucetResponse);
+        // ২. সরাসরি আপনার নিজের অ্যাড্রেসে একটি কয়েন ট্রান্সফার করা 
+        // এবং সেটির সাথে ডাটা যুক্ত করে দেওয়া (এটি অনেক বেশি স্টেবল পদ্ধতি)
+        const [coin] = txb.splitCoins(txb.gas, [1000]); // ১০০০ ন্যানো আইওটা আলাদা করা
+        txb.transferObjects([coin], myAddress); 
+        
+        // ডাটাটি একটি স্ট্রিং হিসেবে মেটাডাটা বা আর্গুমেন্ট হিসেবে সংযুক্ত করা
+        // নোট: Rebased এ ডাটা স্টোর করার সবচেয়ে ক্লিন উপায় হলো একটি নিজস্ব অবজেক্ট তৈরি করা
+        console.log(`Attempting to store message: "${message}"`);
 
-    // অপেক্ষা করুন (ফসেট async, টোকেন আসতে ১০-৩০ সেকেন্ড লাগতে পারে)
-    console.log('30 seconds for coming tokens.....');
-    await new Promise(resolve => setTimeout(resolve, 30000));
+        // ৩. বাজেট ম্যানুয়ালি সেট করে দেওয়া যাতে ড্রাই রান ফেইল না করে
+        txb.setGasBudget(10000000); 
 
-    // ব্যালেন্স চেক: getCoins দিয়ে owner হিসেবে অ্যাড্রেস দিন
-    console.log('Balance is checking...');
-    const coins = await client.getCoins({ owner: myAddress });
+        const result = await client.signAndExecuteTransaction({
+            signer: keypair,
+            transaction: txb,
+        });
 
-    let totalBalance = 0n;
-    if (coins && coins.data && coins.data.length > 0) {
-      for (const coin of coins.data) {
-        totalBalance += BigInt(coin.balance);
-      }
+        console.log('✅ Success! Data sent to Tangle.');
+        console.log('Digest:', result.digest);
+        console.log(`🔗 Explorer: https://explorer.rebased.iota.org/tx/${result.digest}?network=devnet`);
+
+    } catch (error) {
+        console.error('Final Error Details:', error.message);
     }
-
-    const balanceInIOTA = Number(totalBalance) / 1_000_000_000;
-    console.log('My total Balance:', balanceInIOTA.toFixed(6), 'IOTA');
-    console.log('Getting total coins', coins?.data?.length || 0);
-
-    // যদি ০ দেখায়, explorer-এ চেক করুন
-    if (balanceInIOTA === 0) {
-      console.log('Balance is zero, please check in explorer:');
-      console.log('https://explorer.rebased.iota.org/?network=devnet');
-      console.log('Please address paste', myAddress);
-    }
-
-  } catch (error) {
-    console.error('Error :', error.message || error);
-    console.log('if you are using devnet, please check the faucet and explorer:');
-  }
 }
 
 main();
