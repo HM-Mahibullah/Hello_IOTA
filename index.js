@@ -5,6 +5,8 @@ import { Transaction } from '@iota/iota-sdk/transactions';
 
 const client = new IotaClient({ url: getFullnodeUrl('devnet') });
 
+
+// ২. মেইন ফাংশন
 async function main() {
     try {
         const keypair = new Ed25519Keypair();
@@ -17,31 +19,19 @@ async function main() {
             recipient: myAddress
         });
         
-        console.log('Waiting 45 seconds for gas...');
-        await new Promise(res => setTimeout(res, 45000));
-
-        // গ্যাস চেক করা
-        const coins = await client.getCoins({ owner: myAddress });
-        if (coins.data.length === 0) {
-            throw new Error("Faucet logic failed or delay. Please try again.");
-        }
+        console.log('Waiting 40 seconds for gas to arrive...');
+        await new Promise(res => setTimeout(res, 40000));
 
         const txb = new Transaction();
-        
-        // ১. আপনার মেসেজটি একটি স্ট্রিং হিসেবে পিওর ডাটা ফর্মে তৈরি করা
-        const message = "I am mahibullah";
+        const messageToStore = "I am mahibullah";
 
-        // ২. সরাসরি আপনার নিজের অ্যাড্রেসে একটি কয়েন ট্রান্সফার করা 
-        // এবং সেটির সাথে ডাটা যুক্ত করে দেওয়া (এটি অনেক বেশি স্টেবল পদ্ধতি)
-        const [coin] = txb.splitCoins(txb.gas, [1000]); // ১০০০ ন্যানো আইওটা আলাদা করা
-        txb.transferObjects([coin], myAddress); 
-        
-        // ডাটাটি একটি স্ট্রিং হিসেবে মেটাডাটা বা আর্গুমেন্ট হিসেবে সংযুক্ত করা
-        // নোট: Rebased এ ডাটা স্টোর করার সবচেয়ে ক্লিন উপায় হলো একটি নিজস্ব অবজেক্ট তৈরি করা
-        console.log(`Attempting to store message: "${message}"`);
+        const [coin] = txb.splitCoins(txb.gas, [1000]); 
+        txb.transferObjects([coin], myAddress);
 
-        // ৩. বাজেট ম্যানুয়ালি সেট করে দেওয়া যাতে ড্রাই রান ফেইল না করে
+        txb.pure.string(messageToStore); 
         txb.setGasBudget(10000000); 
+
+        console.log(`📤 Sending message: "${messageToStore}" to IOTA Tangle...`);
 
         const result = await client.signAndExecuteTransaction({
             signer: keypair,
@@ -50,7 +40,10 @@ async function main() {
 
         console.log('✅ Success! Data sent to Tangle.');
         console.log('Digest:', result.digest);
-        console.log(`🔗 Explorer: https://explorer.rebased.iota.org/tx/${result.digest}?network=devnet`);
+        console.log(`🔗 Explorer Link: https://explorer.rebased.iota.org/tx/${result.digest}?network=devnet`);
+        
+        console.log('Waiting 5 seconds for network indexing...');
+        await new Promise(res => setTimeout(res, 5000));
 
     } catch (error) {
         console.error('Final Error Details:', error.message);
@@ -58,6 +51,8 @@ async function main() {
 }
 
 main();
+
+
 
 
 
